@@ -179,6 +179,8 @@ function cacheDOMRefs() {
 
   DOM.purgeRejectedBtn = document.getElementById('purge-rejected-btn');
 
+  DOM.sidebarToggle = document.getElementById('sidebar-toggle');
+
   // Toast
   DOM.toastContainer = document.getElementById('toast-container');
 }
@@ -468,6 +470,7 @@ async function selectGame(gameId) {
   AppState.currentPage = 1;
   AppState.selectedImages.clear();
   renderGameList(AppState.games); // re-render to update active state
+  document.getElementById('sidebar')?.classList.remove('sidebar-open');
   await loadImages();
 }
 
@@ -813,6 +816,11 @@ function bindEvents() {
     const q = e.target.value.toLowerCase();
     const filtered = AppState.games.filter((g) => g.name.toLowerCase().includes(q));
     renderGameList(filtered);
+  });
+
+  // Sidebar toggle (mobile)
+  DOM.sidebarToggle?.addEventListener('click', () => {
+    document.getElementById('sidebar')?.classList.toggle('sidebar-open');
   });
 
   // Buttons

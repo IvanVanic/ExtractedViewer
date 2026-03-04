@@ -20,6 +20,7 @@
     <!-- Left Sidebar: Game List -->
     <aside id="sidebar" class="sidebar">
       <div class="sidebar-header">
+        <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle game list">☰</button>
         <h1 class="sidebar-title">VN CG Viewer</h1>
         <div class="search-container">
           <input
@@ -100,83 +101,85 @@
             >
           </div>
 
-          <button
-            id="select-mode-btn"
-            class="btn btn-secondary"
-            title="Toggle selection mode for bulk actions"
-            aria-label="Toggle selection mode"
-          >
-            Select
-          </button>
+          <div class="filter-actions">
+            <button
+              id="select-mode-btn"
+              class="btn btn-secondary"
+              title="Toggle selection mode for bulk actions"
+              aria-label="Toggle selection mode"
+            >
+              Select
+            </button>
 
-          <button
-            id="select-all-btn"
-            class="btn btn-secondary"
-            style="display:none"
-            title="Select all images on page"
-            aria-label="Select all images"
-          >
-            All
-          </button>
+            <button
+              id="select-all-btn"
+              class="btn btn-secondary"
+              style="display:none"
+              title="Select all images on page"
+              aria-label="Select all images"
+            >
+              All
+            </button>
 
-          <button
-            id="deselect-all-btn"
-            class="btn btn-secondary"
-            style="display:none"
-            title="Deselect all"
-            aria-label="Deselect all images"
-          >
-            None
-          </button>
+            <button
+              id="deselect-all-btn"
+              class="btn btn-secondary"
+              style="display:none"
+              title="Deselect all"
+              aria-label="Deselect all images"
+            >
+              None
+            </button>
 
-          <button
-            id="bulk-accept-btn"
-            class="btn btn-accept"
-            style="display:none"
-            title="Accept selected"
-            aria-label="Accept selected images"
-          >
-            Accept Selected
-          </button>
+            <button
+              id="bulk-accept-btn"
+              class="btn btn-accept"
+              style="display:none"
+              title="Accept selected"
+              aria-label="Accept selected images"
+            >
+              Accept Selected
+            </button>
 
-          <button
-            id="bulk-reject-btn"
-            class="btn btn-reject"
-            style="display:none"
-            title="Reject selected"
-            aria-label="Reject selected images"
-          >
-            Reject Selected
-          </button>
+            <button
+              id="bulk-reject-btn"
+              class="btn btn-reject"
+              style="display:none"
+              title="Reject selected"
+              aria-label="Reject selected images"
+            >
+              Reject Selected
+            </button>
 
-          <span id="selection-count" class="count-badge" style="display:none">0 selected</span>
+            <span id="selection-count" class="count-badge" style="display:none">0 selected</span>
 
-          <button
-            id="purge-rejected-btn"
-            class="btn btn-reject"
-            title="Permanently delete rejected images from selected game"
-            aria-label="Purge rejected images from selected game"
-          >
-            Purge Rejected
-          </button>
+            <button
+              id="purge-rejected-btn"
+              class="btn btn-reject"
+              title="Permanently delete rejected images from selected game"
+              aria-label="Purge rejected images from selected game"
+            >
+              Purge Rejected
+            </button>
 
-          <button
-            id="review-mode-btn"
-            class="btn btn-accent"
-            title="Enter QA Review Mode (R)"
-            aria-label="Enter QA review mode"
-          >
-            QA Review
-          </button>
+            <button
+              id="review-mode-btn"
+              class="btn btn-accent"
+              title="Enter QA Review Mode (R)"
+              aria-label="Enter QA review mode"
+            >
+              QA Review
+            </button>
 
-          <button
-            id="stats-btn"
-            class="btn btn-secondary"
-            title="View statistics"
-            aria-label="View statistics"
-          >
-            Stats
-          </button>
+            <button
+              id="stats-btn"
+              class="btn btn-secondary"
+              title="View statistics"
+              aria-label="View statistics"
+            >
+              Stats
+            </button>
+          </div>
         </div>
 
         <div class="filter-info">

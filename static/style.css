@@ -503,6 +503,13 @@ textarea::selection {
   flex-wrap: wrap;
 }
 
+.filter-actions {
+  display: flex;
+  gap: var(--vn-spacing-sm);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .filter-select {
   padding: var(--vn-spacing-sm) var(--vn-spacing-md);
   background-color: var(--vn-bg-tertiary);
@@ -1657,207 +1664,452 @@ textarea::selection {
 
 @media (max-width: 375px) {
   :root {
-    --vn-sidebar-width: 100%;
     --vn-thumbnail-min: 80px;
     --vn-spacing-md: 0.75rem;
   }
 
   .sidebar-title {
-    font-size: 1.125rem;
+    font-size: 0.9375rem;
   }
 
-  .btn {
-    font-size: 0.8125rem;
-    padding: var(--vn-spacing-xs) var(--vn-spacing-sm);
-    min-height: 44px;
-  }
-
-  .btn-icon {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
-  }
-
-  .search-input {
-    font-size: 16px; /* Prevent zoom on iOS */
-  }
-
-  .filter-select {
-    font-size: 16px; /* Prevent zoom on iOS */
-  }
-
+  /* 2-column grid on very small phones */
   .image-grid {
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    gap: var(--vn-spacing-sm);
-    padding: var(--vn-spacing-sm);
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--vn-spacing-xs);
+    padding: var(--vn-spacing-xs);
   }
 
   .image-card-name {
-    font-size: 0.7rem;
-  }
-
-  .image-card-status {
     font-size: 0.625rem;
   }
 
-  .toast {
-    min-width: calc(100vw - 1rem);
-    max-width: calc(100vw - 1rem);
-    font-size: 0.8125rem;
+  /* Tighter filter selects */
+  .filter-select {
+    max-width: 110px;
   }
 
+  /* Tighter action buttons */
+  .action-btn {
+    font-size: 0.6875rem;
+    padding: 4px var(--vn-spacing-xs);
+  }
+
+  /* Modal stays accessible */
   .modal-content {
-    max-width: 95vw;
+    max-width: 98vw;
     max-height: 90vh;
   }
 
-  .review-navigation {
-    flex-direction: column;
-    gap: var(--vn-spacing-sm);
+  /* Toast spans full width with minimal margin */
+  .toast {
+    min-width: calc(100vw - 1rem);
+    max-width: calc(100vw - 1rem);
   }
 
-  .nav-btn {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
-    font-size: 1.25rem;
+  .toast-container {
+    left: 0.5rem;
+    right: 0.5rem;
+    bottom: 0.5rem;
   }
 }
 
 /* ============================================================================
-   Responsive Design - Small Mobile (768px max)
+   Responsive Design - Mobile (max-width: 768px)
    ============================================================================ */
 
-@media (max-width: 767px) {
+/* Hamburger toggle button - rendered by JS, hidden on desktop */
+.sidebar-toggle {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* ------------------------------------------------------------------
+     Root overrides
+  ------------------------------------------------------------------ */
   :root {
     --vn-sidebar-width: 100%;
     --vn-filter-bar-height: auto;
+    --vn-thumbnail-min: 90px;
   }
 
   html {
-    font-size: 15px;
+    font-size: 14px;
   }
 
   body {
-    font-size: 14px;
+    font-size: 13px;
+    /* Allow vertical scroll on mobile - content stacks vertically */
+    overflow: auto;
   }
 
+  /* ------------------------------------------------------------------
+     App shell: stack sidebar above content vertically
+  ------------------------------------------------------------------ */
   #app {
     flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
   }
 
+  /* ------------------------------------------------------------------
+     Sidebar: collapsed horizontal top-bar by default
+  ------------------------------------------------------------------ */
   .sidebar {
+    position: relative;
     width: 100%;
     height: auto;
-    max-height: 35vh;
+    /* No fixed height - collapses to header row only when closed */
+    max-height: none;
     border-right: none;
     border-bottom: 1px solid var(--vn-border);
-    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    /* Override desktop flex-direction: column with row for the header */
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  /* Sidebar header becomes a compact horizontal row */
+  .sidebar-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--vn-spacing-sm) var(--vn-spacing-md);
+    border-bottom: none;
+    gap: var(--vn-spacing-sm);
+    flex-wrap: nowrap;
   }
 
   .sidebar-title {
-    font-size: 1.1875rem;
+    font-size: 1rem;
+    margin-bottom: 0;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
-  .sidebar-header {
-    padding: var(--vn-spacing-md);
+  /* Hide search in header when sidebar is collapsed */
+  .sidebar-header .search-container {
+    display: none;
   }
 
-  .search-container {
-    flex-wrap: wrap;
+  .sidebar.sidebar-open .sidebar-header .search-container {
+    display: flex;
+    flex: 1;
+    min-width: 0;
   }
 
-  .btn,
-  .search-input,
-  .filter-select {
+  /* Scan button in header: keep it compact */
+  .sidebar-header .scan-btn,
+  .sidebar-header .btn {
+    padding: var(--vn-spacing-xs) var(--vn-spacing-sm);
+    font-size: 0.8125rem;
+    min-height: 36px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Hamburger toggle button - shown on mobile */
+  .sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
     min-height: 44px;
-    font-size: 14px;
+    background-color: var(--vn-bg-tertiary);
+    border: 1px solid var(--vn-border);
+    border-radius: var(--vn-radius-md);
+    color: var(--vn-text-primary);
+    font-size: 1.25rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background-color var(--vn-transition-fast),
+                border-color var(--vn-transition-fast);
+  }
+
+  .sidebar-toggle:hover {
+    background-color: var(--vn-bg-hover);
+    border-color: var(--vn-border-light);
+  }
+
+  .sidebar-toggle:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.2);
+  }
+
+  /* Game list: hidden by default; revealed when .sidebar-open is toggled */
+  .game-list {
+    display: none;
+    /* When visible: horizontal scrollable row of game chips */
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: var(--vn-spacing-sm) var(--vn-spacing-md);
+    gap: var(--vn-spacing-sm);
+    border-top: 1px solid var(--vn-border);
+    /* Limit height to a compact single row */
+    max-height: 80px;
+    align-items: center;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .game-list::-webkit-scrollbar {
+    display: none; /* Chrome/Safari - hide scrollbar but keep scroll */
+  }
+
+  /* When sidebar is open, show the game list */
+  .sidebar.sidebar-open .game-list {
+    display: flex;
+  }
+
+  /* Game items become compact horizontal chips */
+  .game-item {
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--vn-spacing-sm);
+    padding: var(--vn-spacing-xs) var(--vn-spacing-md);
+    border-radius: var(--vn-radius-xl);
+    min-width: max-content;
+    /* Remove desktop hover translate */
+    transform: none;
+  }
+
+  .game-item:hover {
+    transform: none;
+  }
+
+  .game-name {
+    font-size: 0.8125rem;
+    white-space: nowrap;
+  }
+
+  /* Hide progress bar and extra meta inside chips to save space */
+  .game-progress,
+  .game-info {
+    display: none;
+  }
+
+  .game-meta {
+    font-size: 0.6875rem;
+  }
+
+  .game-count {
+    padding: 2px var(--vn-spacing-xs);
+    font-size: 0.6875rem;
+  }
+
+  /* Sidebar stats: compact single horizontal row */
+  .sidebar-stats {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--vn-spacing-sm);
+    padding: var(--vn-spacing-sm) var(--vn-spacing-md);
+    border-top: 1px solid var(--vn-border);
+    background-color: rgba(0, 0, 0, 0.15);
+  }
+
+  /* Only show stats when sidebar is open */
+  .sidebar-stats {
+    display: none;
+  }
+
+  .sidebar.sidebar-open .sidebar-stats {
+    display: flex;
+  }
+
+  .stat-item {
+    flex-direction: column;
+    align-items: flex-start;
+    padding-bottom: 0;
+    border-bottom: none;
+    gap: 2px;
+    min-width: 60px;
+    flex: 1;
+  }
+
+  .stat-label {
+    font-size: 0.6875rem;
+  }
+
+  .stat-value {
+    font-size: 0.875rem;
+  }
+
+  /* ------------------------------------------------------------------
+     Content area: fill remaining space, allow scrolling
+  ------------------------------------------------------------------ */
+  .content {
+    flex: 1;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  /* ------------------------------------------------------------------
+     Filter bar: compact single-row, no stacking
+  ------------------------------------------------------------------ */
+  .filter-bar {
+    padding: var(--vn-spacing-sm) var(--vn-spacing-md);
+  }
+
+  .filter-controls {
+    /* Keep row layout; allow wrapping only for search if needed */
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--vn-spacing-sm);
+    margin-bottom: var(--vn-spacing-xs);
+  }
+
+  /* Selects: compact, fixed width so they don't blow out the row */
+  .filter-select {
+    min-width: 0;
+    width: auto;
+    flex: 0 1 auto;
+    padding: var(--vn-spacing-xs) var(--vn-spacing-sm);
+    font-size: 13px;
+    min-height: 44px;
+    /* iOS zoom prevention - use 16px on the element itself */
+    font-size: 16px;
+  }
+
+  /* Search input: take remaining space but cap it */
+  .search-input {
+    flex: 1 1 120px;
+    min-width: 80px;
+    padding: var(--vn-spacing-xs) var(--vn-spacing-sm);
+    font-size: 16px; /* Prevent iOS zoom */
+    min-height: 44px;
+  }
+
+  /* Buttons in filter bar: pill-sized, not full-width blocks */
+  .filter-bar .btn,
+  .filter-controls .btn {
+    flex-shrink: 0;
+    padding: var(--vn-spacing-xs) var(--vn-spacing-sm);
+    font-size: 0.8125rem;
+    min-height: 44px;
+    white-space: nowrap;
+    width: auto;
+  }
+
+  /* Hide verbose button labels on mobile; show icon only */
+  .filter-bar .btn .btn-label,
+  .filter-controls .btn .btn-label {
+    display: none;
+  }
+
+  /* Filter info row: compact, single line */
+  .filter-info {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--vn-spacing-sm);
+    align-items: center;
+    font-size: 0.75rem;
+  }
+
+  /* Filter actions: compact scrollable row */
+  .filter-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: var(--vn-spacing-xs);
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: var(--vn-spacing-xs) 0;
+  }
+
+  .filter-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filter-actions .btn {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    padding: var(--vn-spacing-xs) var(--vn-spacing-sm);
+  }
+
+  /* ------------------------------------------------------------------
+     Image grid: 3 columns on mobile
+  ------------------------------------------------------------------ */
+  .image-grid {
+    /* Fixed 3-column grid - predictable and space-efficient */
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--vn-spacing-sm);
+    padding: var(--vn-spacing-sm);
+    /* Allow natural height expansion so images are visible */
+    height: auto;
+    min-height: 300px;
+    overflow-y: visible;
+    overflow-x: hidden;
+  }
+
+  .image-card,
+  .grid-item {
+    border-radius: var(--vn-radius-md);
+  }
+
+  .image-card-name {
+    font-size: 0.6875rem;
+  }
+
+  .image-card-status {
+    font-size: 0.5625rem;
+  }
+
+  /* ------------------------------------------------------------------
+     General touch targets: ensure 44px minimum
+  ------------------------------------------------------------------ */
+  .btn,
+  .btn-icon,
+  .nav-btn,
+  .pagination-btn {
+    min-height: 44px;
+    min-width: 44px;
   }
 
   .btn-icon {
     width: 44px;
     height: 44px;
-    min-width: 44px;
-    min-height: 44px;
   }
 
-  .btn {
-    padding: var(--vn-spacing-sm) var(--vn-spacing-md);
-  }
-
-  .search-input,
-  .filter-select {
-    padding: var(--vn-spacing-sm) var(--vn-spacing-md);
-    font-size: 16px; /* Prevent zoom on iOS */
-  }
-
-  .content {
-    height: 65vh;
-  }
-
-  .filter-bar {
-    padding: var(--vn-spacing-md);
-  }
-
-  .filter-controls {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--vn-spacing-sm);
-    margin-bottom: var(--vn-spacing-sm);
-  }
-
-  .filter-select,
-  .search-input {
-    width: 100%;
-    box-sizing: border-box;
-  }
-
-  .search-container {
-    width: 100%;
-  }
-
-  .filter-info {
-    flex-direction: column;
-    gap: var(--vn-spacing-sm);
-    align-items: flex-start;
-    font-size: 0.8125rem;
-  }
-
-  .image-grid {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: var(--vn-spacing-md);
-    padding: var(--vn-spacing-md);
-  }
-
-  .image-card {
-    border-radius: var(--vn-radius-md);
-  }
-
-  .image-card-name {
-    font-size: 0.75rem;
-  }
-
-  .image-card-status {
-    font-size: 0.625rem;
-  }
-
+  /* ------------------------------------------------------------------
+     QA Review overlay: image on top, sidebar anchored at bottom
+  ------------------------------------------------------------------ */
   .review-overlay {
     flex-direction: column;
   }
 
+  .review-container {
+    flex-direction: column;
+  }
+
+  /* Image takes upper 60% of screen */
   .review-image-container {
-    flex: 1;
+    width: 100%;
+    height: 60vh;
+    flex: none;
     padding: var(--vn-spacing-md);
+    overflow: hidden;
   }
 
   .review-image {
-    max-height: 50vh;
+    max-height: 100%;
+    width: auto;
   }
 
+  /* Review navigation bar: stays inside the image area */
   .review-navigation {
     gap: var(--vn-spacing-sm);
+    padding: var(--vn-spacing-sm) var(--vn-spacing-md);
+    bottom: var(--vn-spacing-md);
   }
 
   .nav-btn {
@@ -1873,22 +2125,36 @@ textarea::selection {
     min-width: 50px;
   }
 
+  /* Review sidebar: fixed at bottom, scrollable, 40vh tall */
   .review-sidebar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
     width: 100%;
     height: auto;
-    max-height: 40%;
+    max-height: 40vh;
     border-left: none;
     border-top: 1px solid var(--vn-border);
-    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.5);
     overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    z-index: var(--vn-z-sticky);
+  }
+
+  /* Shrink review image area to not overlap fixed sidebar */
+  .review-image-container {
+    padding-bottom: calc(40vh + var(--vn-spacing-md));
   }
 
   .review-section {
-    padding: var(--vn-spacing-md);
+    padding: var(--vn-spacing-sm) var(--vn-spacing-md);
   }
 
   .section-title {
     font-size: 0.8125rem;
+    margin-bottom: var(--vn-spacing-sm);
   }
 
   .info-row,
@@ -1896,40 +2162,71 @@ textarea::selection {
     font-size: 0.8125rem;
   }
 
-  .rating-btn,
-  .action-btn {
+  /* Rating buttons: horizontal row */
+  .review-rating {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--vn-spacing-xs);
+  }
+
+  .rating-btn {
+    flex: 1 1 auto;
     font-size: 0.8125rem;
-    padding: var(--vn-spacing-sm) var(--vn-spacing-md);
+    padding: var(--vn-spacing-xs) var(--vn-spacing-sm);
     min-height: 44px;
+    text-align: center;
+  }
+
+  /* Action buttons: horizontal row at bottom, not vertical stack */
+  .review-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--vn-spacing-xs);
   }
 
   .action-btn {
+    flex: 1 1 auto;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    padding: var(--vn-spacing-xs) var(--vn-spacing-sm);
+    min-height: 44px;
+    text-align: center;
+    gap: 2px;
   }
 
   .action-label {
     font-weight: 600;
+    font-size: 0.75rem;
   }
 
-  .action-key {
-    font-size: 0.625rem;
-    margin-left: 0;
+  /* Hide keyboard shortcut hints on mobile - no keyboard */
+  .action-key,
+  .review-shortcuts,
+  .shortcuts-section {
+    display: none;
   }
 
+  /* ------------------------------------------------------------------
+     Toasts: full width from left edge
+  ------------------------------------------------------------------ */
   .toast {
-    min-width: calc(100vw - 1rem);
-    max-width: calc(100vw - 1rem);
+    min-width: calc(100vw - 2rem);
+    max-width: calc(100vw - 2rem);
     font-size: 0.8125rem;
   }
 
   .toast-container {
     bottom: var(--vn-spacing-md);
     right: var(--vn-spacing-md);
-    left: auto;
+    left: var(--vn-spacing-md);
     gap: var(--vn-spacing-sm);
   }
 
+  /* ------------------------------------------------------------------
+     Modals: full-screen friendly
+  ------------------------------------------------------------------ */
   .modal-content {
     max-width: 95vw;
     max-height: 85vh;
@@ -1937,11 +2234,11 @@ textarea::selection {
   }
 
   .modal-header {
-    padding: var(--vn-spacing-lg) var(--vn-spacing-md);
+    padding: var(--vn-spacing-md);
   }
 
   .modal-body {
-    padding: var(--vn-spacing-lg) var(--vn-spacing-md);
+    padding: var(--vn-spacing-md);
   }
 
   .modal-title {
@@ -1953,12 +2250,59 @@ textarea::selection {
     padding: var(--vn-spacing-xs) var(--vn-spacing-sm);
   }
 
+  /* Stats grid: 2 columns on mobile */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--vn-spacing-md);
+  }
+
+  .stat-card-value {
+    font-size: 1.5rem;
+  }
+
+  /* ------------------------------------------------------------------
+     Review close button: safe size
+  ------------------------------------------------------------------ */
   .review-close-btn {
     width: 44px;
     height: 44px;
     min-width: 44px;
     min-height: 44px;
-    font-size: 1.75rem;
+    font-size: 1.5rem;
+    top: var(--vn-spacing-md);
+    right: var(--vn-spacing-md);
+  }
+
+  /* ------------------------------------------------------------------
+     Prevent horizontal overflow globally
+  ------------------------------------------------------------------ */
+  * {
+    max-width: 100%;
+  }
+
+  img,
+  video {
+    height: auto;
+  }
+
+  /* Pagination: compact */
+  .pagination-bar {
+    padding: var(--vn-spacing-sm) var(--vn-spacing-md);
+  }
+
+  .pagination-content {
+    gap: var(--vn-spacing-sm);
+  }
+
+  .pagination-info {
+    font-size: 0.75rem;
+    min-width: 100px;
+  }
+
+  .pagination-btn {
+    padding: var(--vn-spacing-xs) var(--vn-spacing-sm);
+    font-size: 0.8125rem;
+    min-height: 44px;
   }
 }
 
