@@ -7,7 +7,8 @@ from typing import Generator
 
 # Resolve DB path from environment so this module works on Vercel and locally.
 # On Vercel, set VN_CG_DB_PATH to a writable path such as /tmp/data.db.
-_DEFAULT_DB_PATH = Path(__file__).parent / "data.db"
+# On Vercel (read-only fs), default to /tmp/data.db; locally use data.db beside this file.
+_DEFAULT_DB_PATH = Path("/tmp/data.db") if os.environ.get("VERCEL") else Path(__file__).parent / "data.db"
 DB_PATH = Path(os.environ.get("VN_CG_DB_PATH", str(_DEFAULT_DB_PATH)))
 
 # Ensure the parent directory exists at runtime (skipped silently if read-only).

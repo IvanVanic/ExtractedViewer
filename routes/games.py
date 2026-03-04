@@ -142,7 +142,7 @@ def trigger_scan() -> dict[str, Any]:
     try:
         # Get database path from environment variable (set VN_CG_DB_PATH in
         # Vercel project settings). Falls back to data.db beside this package.
-        _default_db = str(Path(__file__).parent.parent / "data.db")
+        _default_db = "/tmp/data.db" if os.environ.get("VERCEL") else str(Path(__file__).parent.parent / "data.db")
         db_path_str = os.getenv("VN_CG_DB_PATH", _default_db)
         db_path = Path(db_path_str)
         stats = scan_cleaned_directory(db_path)

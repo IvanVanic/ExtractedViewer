@@ -67,6 +67,18 @@ def root():
     return FileResponse(path=str(index_file), media_type='text/html')
 
 
+# Serve SW from root scope with Service-Worker-Allowed header
+@app.get("/sw.js")
+def service_worker():
+    """Serve service worker from root path for proper scope."""
+    sw_file = BASE_DIR / "static" / "sw.js"
+    return FileResponse(
+        path=str(sw_file),
+        media_type="application/javascript",
+        headers={"Service-Worker-Allowed": "/"},
+    )
+
+
 # Mount static files AFTER API routes (mount is a catch-all)
 static_dir = BASE_DIR / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")

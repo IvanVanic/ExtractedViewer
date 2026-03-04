@@ -912,7 +912,7 @@ window.addEventListener('unhandledrejection', (event) => {
 
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.register('/static/sw.js', { scope: '/' })
+  navigator.serviceWorker.register('/sw.js', { scope: '/' })
     .then((reg) => {
       console.log('[PWA] SW registered');
       reg.addEventListener('updatefound', () => {
