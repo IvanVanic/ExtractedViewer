@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+  <meta name="description" content="VN CG Viewer - Professional QA tool for visual novel character graphics">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="VN CG Viewer">
+
+  <title>VN CG Viewer - QA Tool</title>
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%231a1a2e' width='192' height='192'/><path fill='%23e94560' d='M48 64h96v64H48z'/></svg>">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+</head>
+<body>
+  <div id="app">
+    <!-- Left Sidebar: Game List -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <h1 class="sidebar-title">VN CG Viewer</h1>
+        <div class="search-container">
+          <input
+            type="text"
+            id="game-search"
+            class="search-input"
+            placeholder="Search games..."
+            aria-label="Search games"
+          >
+          <button
+            id="scan-btn"
+            class="btn btn-primary scan-btn"
+            title="Rescan directory (Ctrl+R)"
+            aria-label="Scan directory for new games"
+          >
+            Scan
+          </button>
+        </div>
+      </div>
+
+      <div id="game-list" class="game-list" role="listbox" aria-label="List of games">
+        <!-- Games will be injected here -->
+      </div>
+
+      <div id="sidebar-stats" class="sidebar-stats">
+        <div class="stat-item">
+          <span class="stat-label">Total Games</span>
+          <span class="stat-value" id="total-games">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Total Images</span>
+          <span class="stat-value" id="total-images">0</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">QA Progress</span>
+          <span class="stat-value" id="qa-progress">0%</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="content" class="content">
+      <!-- Top Filter Bar -->
+      <div id="filter-bar" class="filter-bar" role="toolbar" aria-label="Image filters">
+        <div class="filter-controls">
+          <select
+            id="status-filter"
+            class="filter-select"
+            aria-label="Filter by status"
+          >
+            <option value="">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="accepted">Accepted</option>
+            <option value="rejected">Rejected</option>
+            <option value="flagged">Flagged</option>
+          </select>
+
+          <select
+            id="sort-select"
+            class="filter-select"
+            aria-label="Sort images by"
+          >
+            <option value="filename">Sort by Name</option>
+            <option value="file_size">Sort by Size</option>
+            <option value="dimensions">Sort by Dimensions</option>
+            <option value="status">Sort by Status</option>
+            <option value="rating">Sort by Rating</option>
+            <option value="date_added">Sort by Date Added</option>
+          </select>
+
+          <div class="search-container flex-grow">
+            <input
+              type="text"
+              id="search-input"
+              class="search-input"
+              placeholder="Search images by name or tags..."
+              aria-label="Search images"
+            >
+          </div>
+
+          <button
+            id="select-mode-btn"
+            class="btn btn-secondary"
+            title="Toggle selection mode for bulk actions"
+            aria-label="Toggle selection mode"
+          >
+            Select
+          </button>
+
+          <button
+            id="select-all-btn"
+            class="btn btn-secondary"
+            style="display:none"
+            title="Select all images on page"
+            aria-label="Select all images"
+          >
+            All
+          </button>
+
+          <button
+            id="deselect-all-btn"
+            class="btn btn-secondary"
+            style="display:none"
+            title="Deselect all"
+            aria-label="Deselect all images"
+          >
+            None
+          </button>
+
+          <button
+            id="bulk-accept-btn"
+            class="btn btn-accept"
+            style="display:none"
+            title="Accept selected"
+            aria-label="Accept selected images"
+          >
+            Accept Selected
+          </button>
+
+          <button
+            id="bulk-reject-btn"
+            class="btn btn-reject"
+            style="display:none"
+            title="Reject selected"
+            aria-label="Reject selected images"
+          >
+            Reject Selected
+          </button>
+
+          <span id="selection-count" class="count-badge" style="display:none">0 selected</span>
+
+          <button
+            id="purge-rejected-btn"
+            class="btn btn-reject"
+            title="Permanently delete rejected images from selected game"
+            aria-label="Purge rejected images from selected game"
+          >
+            Purge Rejected
+          </button>
+
+          <button
+            id="review-mode-btn"
+            class="btn btn-accent"
+            title="Enter QA Review Mode (R)"
+            aria-label="Enter QA review mode"
+          >
+            QA Review
+          </button>
+
+          <button
+            id="stats-btn"
+            class="btn btn-secondary"
+            title="View statistics"
+            aria-label="View statistics"
+          >
+            Stats
+          </button>
+        </div>
+
+        <div class="filter-info">
+          <span id="image-count" class="count-badge">0 images</span>
+          <span id="filter-status" class="filter-status-text"></span>
+        </div>
+      </div>
+
+      <!-- Virtual Scroll Image Grid -->
+      <div id="image-grid" class="image-grid" role="grid" aria-label="Image gallery">
+        <!-- Images will be injected here -->
+      </div>
+
+      <!-- Pagination Controls -->
+      <div id="pagination-bar" class="pagination-bar hidden" role="navigation" aria-label="Image pagination">
+        <!-- Pagination will be injected here -->
+      </div>
+
+      <!-- Loading Indicator -->
+      <div id="loading-indicator" class="loading-indicator hidden" role="status" aria-live="polite">
+        <div class="spinner"></div>
+        <span>Loading...</span>
+      </div>
+
+      <!-- Empty State -->
+      <div id="empty-state" class="empty-state hidden" role="status">
+        <div class="empty-state-icon">📭</div>
+        <h3>No images found</h3>
+        <p>Try adjusting your filters or select a game from the sidebar.</p>
+      </div>
+    </main>
+  </div>
+
+  <!-- Fullscreen QA Review Overlay -->
+  <div id="review-overlay" class="review-overlay hidden" role="dialog" aria-modal="true" aria-label="QA Review Mode">
+    <div class="review-container">
+      <!-- Image Viewer -->
+      <div id="review-image-container" class="review-image-container">
+        <img id="review-image" alt="Current image under review" class="review-image">
+        <div class="review-navigation">
+          <button id="review-prev" class="nav-btn" title="Previous image (← or Q)" aria-label="Previous image">‹</button>
+          <span id="review-image-counter" class="image-counter">0 / 0</span>
+          <button id="review-next" class="nav-btn" title="Next image (→ or E)" aria-label="Next image">›</button>
+        </div>
+      </div>
+
+      <!-- Review Sidebar -->
+      <div id="review-sidebar" class="review-sidebar">
+        <!-- Image Info Panel -->
+        <section class="review-section">
+          <h3 class="section-title">Image Info</h3>
+          <div id="review-info" class="review-info">
+            <div class="info-row">
+              <span class="info-label">Name:</span>
+              <span class="info-value" id="info-name">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Size:</span>
+              <span class="info-value" id="info-size">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Dimensions:</span>
+              <span class="info-value" id="info-dimensions">—</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Status:</span>
+              <span class="info-value status-badge" id="info-status">—</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Rating Panel -->
+        <section class="review-section">
+          <h3 class="section-title">Rating</h3>
+          <div id="review-rating" class="review-rating" role="group" aria-label="Image rating">
+            <button class="rating-btn" data-rating="1" title="Rate 1 (press 1)" aria-label="Rate 1 star">★</button>
+            <button class="rating-btn" data-rating="2" title="Rate 2 (press 2)" aria-label="Rate 2 stars">★★</button>
+            <button class="rating-btn" data-rating="3" title="Rate 3 (press 3)" aria-label="Rate 3 stars">★★★</button>
+            <button class="rating-btn" data-rating="4" title="Rate 4 (press 4)" aria-label="Rate 4 stars">★★★★</button>
+            <button class="rating-btn" data-rating="5" title="Rate 5 (press 5)" aria-label="Rate 5 stars">★★★★★</button>
+          </div>
+        </section>
+
+        <!-- Tags Panel -->
+        <section class="review-section">
+          <h3 class="section-title">
+            Tags
+            <button id="edit-tags-btn" class="btn-icon" title="Edit tags" aria-label="Edit tags">+</button>
+          </h3>
+          <div id="review-tags" class="review-tags">
+            <span class="tag-empty">No tags</span>
+          </div>
+        </section>
+
+        <!-- Action Buttons -->
+        <section class="review-section">
+          <h3 class="section-title">Actions</h3>
+          <div id="review-actions" class="review-actions" role="group" aria-label="Image review actions">
+            <button class="action-btn btn-accept" data-action="accept" title="Accept image (A)" aria-label="Accept image (A)">
+              <span class="action-icon">✓</span>
+              <span class="action-label">Accept</span>
+              <span class="action-key">(A)</span>
+            </button>
+            <button class="action-btn btn-reject" data-action="reject" title="Reject image (D)" aria-label="Reject image (D)">
+              <span class="action-icon">✕</span>
+              <span class="action-label">Reject</span>
+              <span class="action-key">(D)</span>
+            </button>
+            <button class="action-btn btn-skip" data-action="skip" title="Skip image (S)" aria-label="Skip image (S)">
+              <span class="action-icon">→</span>
+              <span class="action-label">Skip</span>
+              <span class="action-key">(S)</span>
+            </button>
+            <button class="action-btn btn-flag" data-action="flag" title="Flag for review (F)" aria-label="Flag image for review (F)">
+              <span class="action-icon">⚑</span>
+              <span class="action-label">Flag</span>
+              <span class="action-key">(F)</span>
+            </button>
+            <button class="action-btn btn-undo" data-action="undo" title="Undo last action (Z)" aria-label="Undo last action (Z)">
+              <span class="action-icon">↶</span>
+              <span class="action-label">Undo</span>
+              <span class="action-key">(Z)</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- Progress Panel -->
+        <section class="review-section">
+          <h3 class="section-title">Progress</h3>
+          <div id="review-progress" class="review-progress">
+            <div class="progress-stat">
+              <span class="progress-label">Reviewed</span>
+              <span class="progress-value" id="progress-reviewed">0</span>
+            </div>
+            <div class="progress-bar-container">
+              <div id="progress-bar" class="progress-bar"></div>
+            </div>
+            <div class="progress-stat">
+              <span class="progress-label">Remaining</span>
+              <span class="progress-value" id="progress-remaining">0</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Keyboard Shortcuts -->
+        <section class="review-section shortcuts-section">
+          <h3 class="section-title">Shortcuts</h3>
+          <div id="review-shortcuts" class="review-shortcuts">
+            <div class="shortcut">
+              <kbd>A</kbd> - Accept
+            </div>
+            <div class="shortcut">
+              <kbd>D</kbd> - Reject
+            </div>
+            <div class="shortcut">
+              <kbd>S</kbd> - Skip
+            </div>
+            <div class="shortcut">
+              <kbd>F</kbd> - Flag
+            </div>
+            <div class="shortcut">
+              <kbd>Z</kbd> - Undo
+            </div>
+            <div class="shortcut">
+              <kbd>1-5</kbd> - Rate
+            </div>
+            <div class="shortcut">
+              <kbd>←</kbd><kbd>→</kbd> - Navigate
+            </div>
+            <div class="shortcut">
+              <kbd>Q</kbd><kbd>E</kbd> - Prev/Next
+            </div>
+            <div class="shortcut">
+              <kbd>Esc</kbd> - Exit
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Close Button -->
+      <button id="review-close" class="review-close-btn" title="Close review mode (Esc)" aria-label="Close review mode">
+        <span>×</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Tag Management Modal -->
+  <div id="tag-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="tag-modal-title">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="tag-modal-title" class="modal-title">Manage Tags</h3>
+        <button id="close-tag-modal" class="modal-close" aria-label="Close modal" title="Close (Esc)">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="tag-categories" class="tag-categories">
+          <!-- Tag categories will be injected here -->
+        </div>
+        <div class="custom-tag-section">
+          <label for="new-tag" class="section-title">Add Custom Tag</label>
+          <div class="tag-input-group">
+            <input
+              type="text"
+              id="new-tag"
+              class="search-input"
+              placeholder="Enter custom tag..."
+              aria-label="Custom tag input"
+            >
+            <button id="add-tag-btn" class="btn btn-primary" aria-label="Add custom tag">Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statistics Modal -->
+  <div id="stats-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="stats-modal-title">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3 id="stats-modal-title" class="modal-title">Statistics</h3>
+        <button id="close-stats-modal" class="modal-close" aria-label="Close modal" title="Close (Esc)">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="stats-content" class="stats-grid">
+          <!-- Statistics will be injected here -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container" role="region" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Service Worker Registration & App Script -->
+  <script>
+    // Register service worker for PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/sw.js').catch(err => {
+        console.log('SW registration failed:', err);
+      });
+    }
+  </script>
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>

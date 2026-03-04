@@ -1,0 +1,875 @@
+/**
+ * VN CG Scan Viewer - Main Application
+ * PWA for visual novel CG image QA review
+ * ES2022+ Module Syntax - Vanilla JavaScript
+ */
+
+// ============================================================================
+// Application State Management
+// ============================================================================
+
+const AppState = {
+  games: [],
+  selectedGameId: null,
+  images: [],
+  totalImages: 0,
+  currentPage: 1,
+  perPage: 50,
+  filters: { status: '', search: '', sort: 'filename' },
+  reviewMode: false,
+  reviewIndex: 0,
+  undoStack: [],
+  sessionId: crypto.randomUUID(),
+  tags: [],
+  selectedImages: new Set(),
+  loading: false,
+};
+
+// ============================================================================
+// API Layer - Centralized Backend Communication
+// ============================================================================
+
+const API = {
+  baseURL: '',
+
+  async request(endpoint, options = {}) {
+    const url = `${this.baseURL}/api${endpoint}`;
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-ID': AppState.sessionId,
+          ...options.headers
+        },
+        ...options,
+      });
+
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}`;
+
+        // Handle specific status codes
+        if (response.status === 400) {
+          errorMessage = 'Bad request. Please check your input.';
+        } else if (response.status === 401) {
+          errorMessage = 'Unauthorized. Please log in again.';
+        } else if (response.status === 403) {
+          errorMessage = 'Access denied. You do not have permission.';
+        } else if (response.status === 404) {
+          errorMessage = 'Resource not found.';
+        } else if (response.status === 408) {
+          errorMessage = 'Request timeout. Please try again.';
+        } else if (response.status === 429) {
+          errorMessage = 'Too many requests. Please wait a moment.';
+        } else if (response.status >= 500) {
+          errorMessage = 'Server error. Please try again later.';
+        }
+
+        try {
+          const error = await response.json();
+          if (error.message) {
+            errorMessage = error.message;
+          }
+        } catch (e) {
+          // JSON parse failed, use status-based message
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      if (response.headers.get('content-type')?.includes('application/json')) {
+        return await response.json();
+      }
+      return response;
+    } catch (error) {
+      // Handle network errors separately from API errors
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        showNotification('Network error: Unable to connect to server', 'error');
+      } else {
+        showNotification(`API Error: ${error.message}`, 'error');
+      }
+      throw error;
+    }
+  },
+
+  async getGames() {
+    return this.request('/games');
+  },
+
+  async getGameDetail(gameId) {
+    return this.request(`/games/${gameId}`);
+  },
+
+  async getImages(params = {}) {
+    const queryParams = {
+      sort: AppState.filters.sort,
+      page: AppState.currentPage,
+      per_page: AppState.perPage,
+      ...params,
+    };
+
+    // Only include filters if they have values (omit empty/null filters from query string)
+    if (AppState.selectedGameId) {
+      queryParams.game_id = AppState.selectedGameId;
+    }
+    if (AppState.filters.status) {
+      queryParams.status = AppState.filters.status;
+    }
+    if (AppState.filters.search) {
+      queryParams.search = AppState.filters.search;
+    }
+
+    const query = new URLSearchParams(queryParams);
+    return this.request(`/images?${query}`);
+  },
+
+  async getThumbnail(imageId) {
+    return this.request(`/images/${imageId}/thumbnail`);
+  },
+
+  async getPreview(imageId) {
+    return this.request(`/images/${imageId}/preview`);
+  },
+
+  async getOriginal(imageId) {
+    return this.request(`/images/${imageId}/file`);
+  },
+
+  async reviewImage(imageId, action, rating) {
+    const body = { image_id: imageId, action, ...(rating && { rating }) };
+    return this.request('/review', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'X-Session-ID': AppState.sessionId }
+    });
+  },
+
+  async undoLast(count = 1) {
+    return this.request('/undo', {
+      method: 'POST',
+      body: JSON.stringify({ count }),
+      headers: { 'X-Session-ID': AppState.sessionId }
+    });
+  },
+
+  async scanDirectory() {
+    return this.request('/scan', { method: 'POST' });
+  },
+
+  async getTags() {
+    return this.request('/tags');
+  },
+
+  async getStats() {
+    return this.request('/stats');
+  },
+
+  async updateImage(imageId, data) {
+    return this.request(`/images/${imageId}`, { method: 'PATCH', body: JSON.stringify(data) });
+  },
+
+  async bulkAction(imageIds, action, tag) {
+    const body = { image_ids: imageIds, action, ...(tag && { tag }) };
+    return this.request('/images/bulk', { method: 'POST', body: JSON.stringify(body) });
+  },
+};
+
+// ============================================================================
+// Virtual Scroll Grid Component
+// ============================================================================
+
+class VirtualGrid {
+  constructor(containerId, options = {}) {
+    this.container = document.getElementById(containerId);
+    this.items = [];
+    this.visibleItems = new Map();
+    this.observer = null;
+    this.rowHeight = options.rowHeight || 200;
+    this.colCount = options.colCount || 4;
+    this.onItemClick = options.onItemClick || (() => {});
+    this.renderItem = options.renderItem || ((item) => `<div>${item.id}</div>`);
+    this.init();
+  }
+
+  init() {
+    this.container.innerHTML = '';
+    this.observer = new IntersectionObserver(
+      (entries) => this.handleIntersection(entries),
+      {
+        rootMargin: '200px',
+        threshold: 0.1
+      }
+    );
+  }
+
+  setItems(items) {
+    this.items = items;
+    this.render();
+  }
+
+  render() {
+    const grid = document.createElement('div');
+    grid.className = 'image-grid';
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = `repeat(${this.colCount}, 1fr)`;
+    grid.style.gap = '12px';
+    grid.style.padding = '16px';
+
+    this.items.forEach((item, index) => {
+      const itemEl = document.createElement('div');
+      itemEl.className = 'grid-item';
+      itemEl.id = `item-${item.id}`;
+      itemEl.dataset.itemId = item.id;
+      itemEl.innerHTML = this.renderItem(item);
+      itemEl.addEventListener('click', (e) => {
+        if (!e.shiftKey) {
+          this.onItemClick(item, index, e);
+        } else {
+          this.toggleItemSelection(item.id);
+        }
+      });
+
+      this.observer.observe(itemEl);
+      grid.appendChild(itemEl);
+    });
+
+    this.container.innerHTML = '';
+    this.container.appendChild(grid);
+  }
+
+  handleIntersection(entries) {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        const itemId = entry.target.dataset.itemId;
+        this.loadThumbnail(entry.target, itemId);
+      }
+    });
+  }
+
+  async loadThumbnail(element, imageId) {
+    if (this.visibleItems.has(imageId)) return;
+    this.visibleItems.set(imageId, true);
+
+    try {
+      const thumbImg = element.querySelector('img[data-lazy]');
+      if (thumbImg && thumbImg.dataset.src) {
+        thumbImg.src = thumbImg.dataset.src;
+        thumbImg.removeAttribute('data-lazy');
+      }
+    } catch (error) {
+      console.error('Thumbnail load error:', error);
+    }
+  }
+
+  toggleItemSelection(itemId) {
+    if (AppState.selectedImages.has(itemId)) {
+      AppState.selectedImages.delete(itemId);
+      document.getElementById(`item-${itemId}`)?.classList.remove('selected');
+    } else {
+      AppState.selectedImages.add(itemId);
+      document.getElementById(`item-${itemId}`)?.classList.add('selected');
+    }
+  }
+
+  clearSelection() {
+    AppState.selectedImages.clear();
+    this.container.querySelectorAll('.grid-item.selected').forEach((el) => {
+      el.classList.remove('selected');
+    });
+  }
+
+  destroy() {
+    // Disconnect all observed elements
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
+    }
+    // Clear the container
+    this.container.innerHTML = '';
+    // Clear visible items map
+    this.visibleItems.clear();
+    // Clear items array
+    this.items = [];
+  }
+}
+
+// ============================================================================
+// UI Rendering Functions
+// ============================================================================
+
+function renderGameList(games) {
+  const gameList = document.getElementById('game-list');
+  if (!gameList) return;
+
+  gameList.innerHTML = games
+    .map(
+      (game) => `
+    <div class="game-item ${game.id === AppState.selectedGameId ? 'active' : ''}"
+         data-game-id="${game.id}">
+      <img src="${game.thumbnail_url}" alt="${game.name}" class="game-thumb">
+      <div class="game-info">
+        <div class="game-name">${escapeHtml(game.name)}</div>
+        <div class="game-stats">
+          <span class="stat-item">${game.image_count} images</span>
+          <span class="stat-item">${game.reviewed_count} reviewed</span>
+        </div>
+      </div>
+    </div>
+  `
+    )
+    .join('');
+
+  gameList.querySelectorAll('.game-item').forEach((el) => {
+    el.addEventListener('click', () => selectGame(parseInt(el.dataset.gameId)));
+  });
+}
+
+function renderFilterBar() {
+  const filterBar = document.getElementById('filter-bar');
+  if (!filterBar) return;
+
+  filterBar.innerHTML = `
+    <div class="filter-controls">
+      <input type="text" id="search-input" placeholder="Search images..."
+             value="${AppState.filters.search}" class="filter-input">
+      <select id="status-filter" class="filter-input">
+        <option value="">All Statuses</option>
+        <option value="pending" ${AppState.filters.status === 'pending' ? 'selected' : ''}>Pending</option>
+        <option value="accepted" ${AppState.filters.status === 'accepted' ? 'selected' : ''}>Accepted</option>
+        <option value="rejected" ${AppState.filters.status === 'rejected' ? 'selected' : ''}>Rejected</option>
+        <option value="flagged" ${AppState.filters.status === 'flagged' ? 'selected' : ''}>Flagged</option>
+      </select>
+      <select id="sort-filter" class="filter-input">
+        <option value="filename" ${AppState.filters.sort === 'filename' ? 'selected' : ''}>Name</option>
+        <option value="rating" ${AppState.filters.sort === 'rating' ? 'selected' : ''}>Rating</option>
+        <option value="status" ${AppState.filters.sort === 'status' ? 'selected' : ''}>Status</option>
+      </select>
+      <button id="bulk-accept-btn" class="action-btn" style="display: ${AppState.selectedImages.size > 0 ? 'inline' : 'none'}">
+        Accept (${AppState.selectedImages.size})
+      </button>
+      <button id="bulk-reject-btn" class="action-btn" style="display: ${AppState.selectedImages.size > 0 ? 'inline' : 'none'}">
+        Reject (${AppState.selectedImages.size})
+      </button>
+      <button id="scan-btn" class="action-btn">Scan Directory</button>
+    </div>
+  `;
+
+  // Debounced search
+  const searchInput = document.getElementById('search-input');
+  let searchTimeout;
+  searchInput?.addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      AppState.filters.search = e.target.value;
+      AppState.currentPage = 1;
+      loadImages();
+    }, 300);
+  });
+
+  document.getElementById('status-filter')?.addEventListener('change', (e) => {
+    AppState.filters.status = e.target.value;
+    AppState.currentPage = 1;
+    loadImages();
+  });
+
+  document.getElementById('sort-filter')?.addEventListener('change', (e) => {
+    AppState.filters.sort = e.target.value;
+    AppState.currentPage = 1;
+    loadImages();
+  });
+
+  document.getElementById('bulk-accept-btn')?.addEventListener('click', () => {
+    bulkAction('accept');
+  });
+
+  document.getElementById('bulk-reject-btn')?.addEventListener('click', () => {
+    bulkAction('reject');
+  });
+
+  document.getElementById('scan-btn')?.addEventListener('click', scanDirectory);
+}
+
+function renderImageGrid(images) {
+  const imageContainer = document.getElementById('image-container');
+  if (!imageContainer) return;
+
+  // Destroy existing grid and clean up observers
+  if (window.virtualGrid) {
+    window.virtualGrid.destroy();
+  }
+
+  // Create new grid instance
+  window.virtualGrid = new VirtualGrid('image-container', {
+    colCount: 4,
+    renderItem: renderGridItem,
+    onItemClick: (item) => openReviewMode(item),
+  });
+
+  window.virtualGrid.setItems(images);
+  renderFilterBar();
+}
+
+function renderGridItem(image) {
+  const statusBadge = `<span class="status-badge status-${image.status}">${image.status}</span>`;
+  const rating =
+    image.rating > 0
+      ? `<div class="rating">${'★'.repeat(image.rating)}${'☆'.repeat(5 - image.rating)}</div>`
+      : '';
+
+  // Generate thumbnail API URL for lazy loading
+  const thumbnailSrc = `/api/images/${image.id}/thumbnail`;
+
+  return `
+    <div class="grid-item-content">
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect fill='%23ddd'/%3E%3C/svg%3E"
+           data-src="${thumbnailSrc}" data-lazy class="thumbnail" alt="${escapeHtml(image.filename)}"
+           width="200" height="200" style="aspect-ratio: 1; width: 100%; height: auto;">
+      <div class="item-overlay">
+        ${statusBadge}
+        ${rating}
+        <div class="filename" title="${image.filename}">${image.filename.substring(0, 30)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderReviewMode(image) {
+  const reviewContainer = document.getElementById('review-container');
+  if (!reviewContainer) return;
+
+  const rating =
+    image.rating > 0
+      ? `<div class="rating-display">${'★'.repeat(image.rating)}${'☆'.repeat(5 - image.rating)}</div>`
+      : '<div class="rating-display">Unrated</div>';
+
+  reviewContainer.innerHTML = `
+    <div class="review-mode">
+      <button id="close-review" class="close-btn">&times;</button>
+      <div class="review-content">
+        <img id="review-image" src="${image.preview_url}" alt="Image" class="review-image">
+        <div class="review-info">
+          <h2>${escapeHtml(image.filename)}</h2>
+          <p>Game: ${escapeHtml(image.game_name)}</p>
+          <p>Dimensions: ${image.width}x${image.height} | Size: ${formatBytes(image.file_size)}</p>
+          <p>Status: <span class="status-badge status-${image.status}">${image.status}</span></p>
+          ${rating}
+          <div class="tags">${image.tags?.map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join('') || 'No tags'}</div>
+        </div>
+      </div>
+      <div class="review-controls">
+        <button id="prev-btn" class="review-btn">&larr; Previous (←)</button>
+        <button id="accept-btn" class="review-btn accept">✓ Accept (A)</button>
+        <button id="skip-btn" class="review-btn">○ Skip (S)</button>
+        <button id="flag-btn" class="review-btn flag">⚠ Flag (F)</button>
+        <button id="reject-btn" class="review-btn reject">✗ Reject (D)</button>
+        <button id="next-btn" class="review-btn">&rarr; Next (→)</button>
+      </div>
+      <div class="keyboard-help">
+        <small>A=Accept | D=Reject | S=Skip | F=Flag | Z=Undo | 1-5=Rate | Esc=Exit | Swipe=Left/Right</small>
+      </div>
+    </div>
+  `;
+
+  AppState.reviewMode = true;
+  setupReviewEventListeners();
+}
+
+function renderStats(stats) {
+  const statsContainer = document.getElementById('stats-container');
+  if (!statsContainer) return;
+
+  statsContainer.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value">${stats.total_images}</div>
+        <div class="stat-label">Total Images</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${stats.reviewed}</div>
+        <div class="stat-label">Reviewed</div>
+      </div>
+      <div class="stat-card accepted">
+        <div class="stat-value">${stats.accepted}</div>
+        <div class="stat-label">Accepted</div>
+      </div>
+      <div class="stat-card rejected">
+        <div class="stat-value">${stats.rejected}</div>
+        <div class="stat-label">Rejected</div>
+      </div>
+      <div class="stat-card flagged">
+        <div class="stat-value">${stats.flagged}</div>
+        <div class="stat-label">Flagged</div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================================
+// Event Handlers
+// ============================================================================
+
+function setupReviewEventListeners() {
+  document.getElementById('close-review')?.addEventListener('click', exitReviewMode);
+  document.getElementById('accept-btn')?.addEventListener('click', () => reviewAction('accept'));
+  document.getElementById('reject-btn')?.addEventListener('click', () => reviewAction('reject'));
+  document.getElementById('skip-btn')?.addEventListener('click', () => reviewAction('skip'));
+  document.getElementById('flag-btn')?.addEventListener('click', () => reviewAction('flag'));
+  document.getElementById('prev-btn')?.addEventListener('click', previousImage);
+  document.getElementById('next-btn')?.addEventListener('click', nextImage);
+
+  // Keyboard support
+  document.addEventListener('keydown', handleReviewKeyboard);
+
+  // Touch swipe support
+  let touchStartX = 0;
+  const reviewImage = document.getElementById('review-image');
+  reviewImage?.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+  });
+
+  reviewImage?.addEventListener('touchend', (e) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX - touchEndX;
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) reviewAction('reject');
+      else reviewAction('accept');
+    }
+  });
+}
+
+function handleReviewKeyboard(e) {
+  if (!AppState.reviewMode) return;
+
+  switch (e.key.toLowerCase()) {
+    case 'a':
+      e.preventDefault();
+      reviewAction('accept');
+      break;
+    case 'd':
+      e.preventDefault();
+      reviewAction('reject');
+      break;
+    case 's':
+      e.preventDefault();
+      reviewAction('skip');
+      break;
+    case 'f':
+      e.preventDefault();
+      reviewAction('flag');
+      break;
+    case 'z':
+      e.preventDefault();
+      undoLastAction();
+      break;
+    case 'escape':
+      exitReviewMode();
+      break;
+    case 'arrowright':
+      nextImage();
+      break;
+    case 'arrowleft':
+      previousImage();
+      break;
+    default:
+      if (e.key >= '1' && e.key <= '5') {
+        e.preventDefault();
+        rateImage(parseInt(e.key));
+      }
+  }
+}
+
+async function reviewAction(action) {
+  const image = AppState.images[AppState.reviewIndex];
+  if (!image) return;
+
+  // Disable buttons during submission
+  const reviewBtns = document.querySelectorAll('.review-btn');
+  reviewBtns.forEach((btn) => (btn.disabled = true));
+
+  AppState.loading = true;
+  try {
+    const result = await API.reviewImage(image.id, action);
+    AppState.undoStack.push(result.action_id);
+    if (AppState.undoStack.length > 50) AppState.undoStack.shift();
+
+    // Update local image state
+    const idx = AppState.images.findIndex((i) => i.id === image.id);
+    if (idx >= 0) {
+      AppState.images[idx].status = result.new_status;
+    }
+
+    nextImage();
+  } catch (error) {
+    console.error('Review action failed:', error);
+    showNotification(`Failed to ${action} image. Please try again.`, 'error');
+  } finally {
+    AppState.loading = false;
+    reviewBtns.forEach((btn) => (btn.disabled = false));
+  }
+}
+
+async function rateImage(rating) {
+  const image = AppState.images[AppState.reviewIndex];
+  if (!image) return;
+
+  AppState.loading = true;
+  try {
+    await API.updateImage(image.id, { rating });
+    AppState.images[AppState.reviewIndex].rating = rating;
+    renderReviewMode(image);
+    showNotification(`Rated ${rating} star(s)`, 'success');
+  } catch (error) {
+    console.error('Rating failed:', error);
+    showNotification('Failed to save rating. Please try again.', 'error');
+  } finally {
+    AppState.loading = false;
+  }
+}
+
+function nextImage() {
+  if (AppState.reviewIndex < AppState.images.length - 1) {
+    AppState.reviewIndex++;
+  } else {
+    AppState.reviewIndex = 0;
+  }
+  renderReviewMode(AppState.images[AppState.reviewIndex]);
+}
+
+function previousImage() {
+  if (AppState.reviewIndex > 0) {
+    AppState.reviewIndex--;
+  } else {
+    AppState.reviewIndex = AppState.images.length - 1;
+  }
+  renderReviewMode(AppState.images[AppState.reviewIndex]);
+}
+
+async function undoLastAction() {
+  if (AppState.undoStack.length === 0) {
+    showNotification('Nothing to undo', 'info');
+    return;
+  }
+
+  AppState.loading = true;
+  try {
+    const count = Math.min(AppState.undoStack.length, 5);
+    const result = await API.undoLast(count);
+    AppState.undoStack = AppState.undoStack.slice(0, -count);
+    showNotification(`Undone ${result.undone.length} action(s)`, 'success');
+    await loadImages();
+  } catch (error) {
+    console.error('Undo failed:', error);
+    showNotification('Failed to undo action. Please try again.', 'error');
+  } finally {
+    AppState.loading = false;
+  }
+}
+
+function exitReviewMode() {
+  AppState.reviewMode = false;
+  document.removeEventListener('keydown', handleReviewKeyboard);
+  const reviewContainer = document.getElementById('review-container');
+  if (reviewContainer) {
+    reviewContainer.innerHTML = '';
+  }
+}
+
+async function selectGame(gameId) {
+  AppState.selectedGameId = gameId;
+  AppState.currentPage = 1;
+  AppState.selectedImages.clear();
+  try {
+    await loadImages();
+    renderGameList(AppState.games);
+  } catch (error) {
+    console.error('Failed to select game:', error);
+    showNotification('Failed to load game images. Please try again.', 'error');
+  }
+}
+
+async function openReviewMode(image) {
+  AppState.reviewIndex = AppState.images.findIndex((i) => i.id === image.id);
+  renderReviewMode(image);
+}
+
+async function loadImages() {
+  AppState.loading = true;
+  try {
+    const result = await API.getImages();
+    AppState.images = result.items || [];
+    AppState.totalImages = result.total;
+    renderImageGrid(AppState.images);
+  } catch (error) {
+    console.error('Failed to load images:', error);
+    showNotification('Failed to load images. Please refresh the page.', 'error');
+  } finally {
+    AppState.loading = false;
+  }
+}
+
+async function loadGames() {
+  AppState.loading = true;
+  try {
+    const games = await API.getGames();
+    AppState.games = games;
+    renderGameList(games);
+    if (games.length > 0 && !AppState.selectedGameId) {
+      AppState.selectedGameId = games[0].id;
+      await loadImages();
+    }
+  } catch (error) {
+    console.error('Failed to load games:', error);
+    showNotification('Failed to load games. Please refresh the page.', 'error');
+  } finally {
+    AppState.loading = false;
+  }
+}
+
+async function scanDirectory() {
+  AppState.loading = true;
+  const scanBtn = document.getElementById('scan-btn');
+  if (scanBtn) {
+    scanBtn.disabled = true;
+    scanBtn.textContent = 'Scanning...';
+  }
+
+  try {
+    const result = await API.scanDirectory();
+    showNotification(
+      `Scan complete: ${result.games_found} games, ${result.new_images} new images`,
+      'success'
+    );
+    await loadGames();
+    await loadImages();
+  } catch (error) {
+    console.error('Scan failed:', error);
+    showNotification('Directory scan failed. Please try again or check file permissions.', 'error');
+  } finally {
+    AppState.loading = false;
+    if (scanBtn) {
+      scanBtn.disabled = false;
+      scanBtn.textContent = 'Scan Directory';
+    }
+  }
+}
+
+async function bulkAction(action) {
+  if (AppState.selectedImages.size === 0) return;
+
+  const imageIds = Array.from(AppState.selectedImages);
+  AppState.loading = true;
+
+  // Disable bulk action buttons during submission
+  const bulkBtns = document.querySelectorAll('#bulk-accept-btn, #bulk-reject-btn');
+  bulkBtns.forEach((btn) => (btn.disabled = true));
+
+  try {
+    await API.bulkAction(imageIds, action);
+    showNotification(`Bulk ${action} complete: ${imageIds.length} images`, 'success');
+    AppState.selectedImages.clear();
+    await loadImages();
+  } catch (error) {
+    console.error('Bulk action failed:', error);
+    showNotification(`Bulk ${action} failed. Please try again.`, 'error');
+  } finally {
+    AppState.loading = false;
+    bulkBtns.forEach((btn) => (btn.disabled = false));
+  }
+}
+
+function showNotification(message, type = 'info') {
+  const container = document.getElementById('notification-container');
+  if (!container) return;
+
+  const notification = document.createElement('div');
+  notification.className = `notification notification-${type}`;
+  notification.textContent = message;
+  notification.style.animation = 'slideIn 0.3s ease';
+
+  container.appendChild(notification);
+
+  setTimeout(() => {
+    notification.style.animation = 'slideOut 0.3s ease';
+    setTimeout(() => notification.remove(), 300);
+  }, 4000);
+}
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+function escapeHtml(text) {
+  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+  return text.replace(/[&<>"']/g, (m) => map[m]);
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+}
+
+// ============================================================================
+// Global Error Handling
+// ============================================================================
+
+// Handle unhandled promise rejections
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason);
+  showNotification('An unexpected error occurred. Please refresh the page.', 'error');
+  // Prevent the default browser behavior
+  event.preventDefault();
+});
+
+// Handle global errors
+window.addEventListener('error', (event) => {
+  console.error('Global error:', event.error);
+  showNotification('An unexpected error occurred. Please refresh the page.', 'error');
+});
+
+// ============================================================================
+// Service Worker Registration
+// ============================================================================
+
+async function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+
+  try {
+    const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    console.log('Service Worker registered:', registration);
+  } catch (error) {
+    console.warn('Service Worker registration failed:', error);
+  }
+}
+
+// ============================================================================
+// Application Initialization
+// ============================================================================
+
+async function init() {
+  // Ensure DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+    return;
+  }
+
+  try {
+    await loadGames();
+    await loadImages();
+    renderFilterBar();
+    registerServiceWorker();
+    showNotification('VN CG Scan Viewer loaded', 'success');
+  } catch (error) {
+    console.error('Initialization failed:', error);
+    showNotification('Failed to initialize application. Check network connection and try refreshing.', 'error');
+  }
+}
+
+// Start the application
+init();
+
+// Export for testing
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { AppState, API, VirtualGrid };
+}
