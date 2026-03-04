@@ -40,24 +40,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve index.html for root path
-@app.get("/")
-def root():
-    """Serve index.html for root path."""
-    index_file = BASE_DIR / "static" / "index.html"
-    logger.info(f"Serving root path with index.html from {index_file}")
-    return FileResponse(path=str(index_file), media_type='text/html')
-
-
-# Mount static files
-static_dir = BASE_DIR / "static"
-if static_dir.exists():
-    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
-    logger.info(f"Static files mounted from {static_dir}")
-else:
-    logger.warning(f"Static directory not found at {static_dir}")
-
-
 # Import and include all routers
 try:
     from routes import games, images, tags, review, stats
@@ -75,6 +57,20 @@ try:
 except ImportError as e:
     logger.error(f"Failed to import routers or database: {e}")
     raise
+
+
+# Serve index.html for root path
+@app.get("/")
+def root():
+    """Serve index.html for root path."""
+    index_file = BASE_DIR / "static" / "index.html"
+    return FileResponse(path=str(index_file), media_type='text/html')
+
+
+# Mount static files AFTER API routes (mount is a catch-all)
+static_dir = BASE_DIR / "static"
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+logger.info(f"Static files mounted from {static_dir}")
 
 
 @app.on_event("startup")
