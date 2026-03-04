@@ -88,8 +88,16 @@ logger.info(f"Static files mounted from {static_dir}")
 @app.on_event("startup")
 async def startup_event() -> None:
     """Initialize database on startup."""
+    import shutil
     logger.info("Starting up - initializing database")
     try:
+        # On Vercel: copy bundled DB to writable /tmp if not already there
+        if os.environ.get("VERCEL"):
+            bundled_db = BASE_DIR / "data.db"
+            tmp_db = Path("/tmp/data.db")
+            if bundled_db.exists() and not tmp_db.exists():
+                shutil.copy2(str(bundled_db), str(tmp_db))
+                logger.info(f"Copied bundled DB to {tmp_db}")
         init_db()
         logger.info("Database initialized successfully")
     except Exception as e:
